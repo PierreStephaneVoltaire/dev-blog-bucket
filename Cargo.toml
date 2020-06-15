@@ -1,0 +1,28 @@
+[package]
+name = "dev-blog-bucket"
+version = "0.1.0"
+authors = ["PierreStephaneVoltaire <psvoltaire96@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rusoto_core = "0.44.0"
+rusoto_sqs = "0.44.0"
+rusoto_s3 = "0.44.0"
+chrono = { version = "0.4", features = ["serde"] }
+elasticsearch = "7.5.1-alpha.1"
+actix-rt = "1.0.0"
+actix-web = "2.0.0"
+actix-files = "0.2.1"
+actix-utils = "1.0.3"
+actix-swagger = "0.2.1"
+futures = "0.3.1"
+env_logger = "0.7"
+bytes = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+json = "0.12"
+validator = "0.10"
+validator_derive = "0.10"
+bucket={path="./src/libs/bucket"}
