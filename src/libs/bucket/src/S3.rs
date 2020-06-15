@@ -22,16 +22,24 @@ pub async fn get_file(file_name:String) -> GetObjectOutput {
  let input=&file_name;
  return get_s3_client().get_object(
   GetObjectRequest{
-   bucket: input.to_string(),
-   key: (&file_name).parse().unwrap(),
+   bucket: POST_BUCKET_NAME.to_string(),
+   key: input.to_string(),
    ..Default::default()
   }
  ).await.unwrap();
+
+
 
 }
 
  pub async fn get_file_content(file_name:String) -> String {
   let file=get_file(file_name).await;
+  if file.content_length.unwrap()>0 {
+   println!("{}",file.content_length.unwrap())
+  }
+  else {
+   panic!("{}","i messed up")
+  }
   let stream=file.body.unwrap();
   let body:BytesMut = stream.map_ok(|b| bytes::BytesMut::from(&b[..])).try_concat().await.unwrap();
   let data = body.to_vec();

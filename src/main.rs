@@ -20,6 +20,7 @@ use bucket::S3::get_file_content;
 #[get("/{name}")]
 async fn get_doc_content(doc_name: web::Path<(String)>) -> Result<HttpResponse> {
     let document_name=doc_name.into_inner();
+    println!("{}",document_name);
    let file_content=get_file_content(document_name);
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json; charset=utf-8")
