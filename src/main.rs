@@ -1,27 +1,33 @@
 #[macro_use]
 extern crate actix_web;
-use serde::Deserialize;
 
+use std::{thread, time};
 use std::{env, io};
-use actix_utils::mpsc;
-use actix_web::http::{header, Method, StatusCode};
-use actix_web::{
-    error, guard, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
-    Result,
-};
-use bytes::{Bytes, BytesMut, Buf};
-use serde_json::{json, Value};
-use rusoto_s3::{S3Client, S3, GetObjectRequest};
-use rusoto_core::Region;
-use futures::TryStreamExt;
-use bucket::S3::get_file_content;
+use std::borrow::Borrow;
 
+use actix_rt::System;
+use std::sync::mpsc;
+use actix_web::{
+    App, error, Error, guard, HttpRequest, HttpResponse, HttpServer, middleware, Result,
+    web,
+};
+use actix_web::dev::Server;
+use actix_web::http::{header, Method, StatusCode};
+use bytes::{Buf, Bytes, BytesMut};
+use dotenv;
+use futures::TryStreamExt;
+use rusoto_core::Region;
+use rusoto_s3::{GetObjectRequest, S3, S3Client};
+use rusoto_sqs::{CreateQueueRequest, ReceiveMessageRequest, Sqs, SqsClient};
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+use bucket::S3::get_file_content;
 
 #[get("/{name}")]
 async fn get_doc_content(doc_name: web::Path<(String)>) -> Result<HttpResponse> {
-    let document_name=doc_name.into_inner();
-    println!("{}",document_name);
-   let file_content=get_file_content(document_name);
+    let document_name = doc_name.into_inner();
+    let file_content = get_file_content(document_name);
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json; charset=utf-8")
         .body(file_content.await))
@@ -35,17 +41,56 @@ async fn create_doc() -> Result<HttpResponse> {
         .body(""))
 }
 
+fn run_app(tx: mpsc::Sender<Server>) -> std::io::Result<()> {
+    let mut sys = System::new("server");
+
+    // srv is server controller type, `dev::Server`
+    let srv =
+        HttpServer::new(|| {
+            App::new()
+                .service(get_doc_content)
+                .service(create_doc)
+
+                .wrap(middleware::Logger::default())
+        }).bind("127.0.0.1:8000")?
+            .run();
+
+
+    // send server controller to main thread
+    let _ = tx.send(srv.clone());
+
+    // run future
+    sys.block_on(srv)
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
+    dotenv::dotenv().ok();
+
+    let qpath = env::var("qpath").unwrap();
     env_logger::init();
 
-    HttpServer::new(|| {
-        App::new()
-            .service(get_doc_content)
-            .service(create_doc)
+    let (tx, rx) = mpsc::channel();
 
-            .wrap(middleware::Logger::default())
-    }).bind("127.0.0.1:8000")?
-        .run()
-        .await
+    println!("START SERVER");
+    thread::spawn(move || {
+        let _ = run_app(tx);
+    });
+
+
+    let sqs = SqsClient::new(
+        Region::CaCentral1
+    );
+    let mut req = ReceiveMessageRequest::default();
+    req.queue_url = qpath.to_string();
+    loop {
+        let response = sqs.receive_message(req.clone()).await.unwrap();
+        let messages = response.messages.unwrap_or_default();
+        if !messages.is_empty() {
+            for (i, x) in messages.iter().enumerate() {
+                let body=x.body.clone();
+                println!("{}", body.unwrap());
+            }
+        }
+    }
 }
