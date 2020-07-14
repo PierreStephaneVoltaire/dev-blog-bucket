@@ -26,4 +26,6 @@ json = "0.12"
 validator = "0.10"
 validator_derive = "0.10"
 bucket={path="./src/libs/bucket"}
+PostDocument={path="./src/libs/PostDocument"}
+
 dotenv = "0.15.0"
